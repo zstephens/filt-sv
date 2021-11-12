@@ -137,7 +137,7 @@ def main(raw_args=None):
 	rm(TEMP_VCF_0)
 
 	#
-	# [4] NON-REPETITIVE SVS --> SUBTRACT CONTROL SVS
+	# [4] SUBTRACT CONTROL SVS
 	#
 	print('-- subtracting control svs (non-repeats): --')
 	split_common_svs(NR_NOT_COMMON_NOT_BND, NR_CONTROL, NR_FINAL, CONTROL_SVS)
