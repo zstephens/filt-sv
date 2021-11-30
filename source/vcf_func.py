@@ -86,7 +86,8 @@ def sort_vcf(fn_in, fn_out):
 def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 	f  = open(fn_in, 'r')
 	f2 = open(fn_out, 'w')
-	nskipped = 0
+	nskipped = 0	# filtered
+	nfailed  = 0	# skipped because we couldn't find the info we wanted, or SV is otherwise weird (e.g. multi-allele)
 	nwritten = 0
 	for line in f:
 		if line[0] == '#':
@@ -100,20 +101,32 @@ def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 			splt   = line.strip().split('\t')
 			splt2  = splt[col_form].split(':')
 			splt3  = splt[col_samp].split(':')
+			#
+			# AD is missing
+			if 'AD' not in splt2:
+				nfailed += 1
+				continue
 			col_ad = splt2.index('AD')
+			#
+			# AD values are .
+			if '.' in splt3[col_ad]:
+				nfailed += 1
+				continue
 			readcounts = [int(n) for n in splt3[col_ad].split(',')]
-			if sum(readcounts) == 0: # why was this SV even called if zero reads support it??
+			#
+			# why was this SV even called if zero reads support it??
+			if sum(readcounts) == 0:
 				nskipped += 1
 				continue
 			my_reads = readcounts[1]
 			my_vaf   = float(my_reads)/sum(readcounts)
-			if len(readcounts) > 2:	# multiple alleles, skipping this for now...
-				nskipped += 1
+			#
+			# multiple alleles, skipping this for now...
+			if len(readcounts) > 2:
+				nfailed += 1
 				continue
-			if ('N' in splt[3] and '<' not in splt[3]) or ('N' in splt[4] and '<' not in splt[4]):	# ignore ref/alt alleles involving N bases
-				nskipped += 1
-				continue
-			elif len(readcounts) == 2 and my_reads >= min_readcount and my_vaf >= min_vaf:
+			#
+			if len(readcounts) == 2 and my_reads >= min_readcount and my_vaf >= min_vaf:
 				f2.write(line)
 				nwritten += 1
 			else:
@@ -122,6 +135,8 @@ def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 	f.close()
 	print('SVS-pass (reads >= '+str(min_readcount)+' & vaf >= '+'{0:0.2f}'.format(min_vaf)+'):', nwritten)
 	print('SVS-filt (reads <  '+str(min_readcount)+' | vaf <  '+'{0:0.2f}'.format(min_vaf)+'):', nskipped)
+	print('---')
+	print('SVs-fail (AD not found, or multi-allelic):', nfailed)
 
 #
 #
