@@ -34,16 +34,26 @@ def parse_bed_regions(fn, anno_col=3):
 	f.close()
 	return dat_out
 
-def query_bed_regions(bed_dict, q_chr, q_pos, max_dist=10000):
+#
+# bed intersect - work harder, not smarter!
+#
+def query_bed_regions(bed_dict, q_chr, q_pos, q_end=None, max_dist=10000):
+	if q_end == None:
+		q_end = q_pos
+	[q_pos, q_end] = sorted([q_pos, q_end])
+	#
 	dat_out = []
 	if q_chr in bed_dict:
 		for br in bed_dict[q_chr]:
-			if br[0] > q_pos+max_dist:						# we've gone too far, stop looking
+			qr = [q_pos-max_dist, q_end+max_dist]
+			if br[0] > qr[1]:						# we've gone too far, stop looking
 				break
-			if q_pos >= br[0]-max_dist and q_pos < br[0]:	# we're close enough, on the right
-				dat_out.append((br[2], br[0]-q_pos))
-			elif q_pos >= br[0] and q_pos <= br[1]:			# we've got a hit inside a bed region
-				dat_out.append((br[2], 0))
-			elif q_pos <= br[1]+max_dist and q_pos > br[1]:	# we're close enough, on the left
-				dat_out.append((br[2], q_pos-br[1]))
+			if br[0] <= qr[1] and qr[0] <= br[1]:	# ranges overlap
+				my_dist = 0
+				if q_end < br[0]:
+					my_dist = br[0]-q_end
+				elif q_pos > br[1]:
+					my_dist = q_pos-br[1]
+				dat_out.append((br[2], my_dist))
+	dat_out = [m[1] for m in sorted(list(set([(n[1], n) for n in dat_out])))]
 	return dat_out

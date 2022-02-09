@@ -1,4 +1,8 @@
+import pathlib
 import re
+import sys
+
+from source.bed_func import query_bed_regions
 
 LEXICO_2_IND = {'chr1':1, 'chr2':2, 'chr3':3, 'chr10':10, 'chr11':11, 'chr12':12, 'chr19':19, 'chr20':20,
 				'chr4':4, 'chr5':5, 'chr6':6, 'chr13':13, 'chr14':14, 'chr15':15, 'chr21':21, 'chr22':22,
@@ -51,7 +55,7 @@ def parse_info_column_of_sv(my_info, start_pos):
 			my_end = start_pos
 		elif my_typ == 'DEL' and my_len < 0:
 			my_end = start_pos - my_len
-		elif my_type == 'DUP' and my_len > 0:
+		elif my_typ == 'DUP' and my_len > 0:
 			my_end = start_pos + my_len
 		else:
 			# well we tried...
@@ -227,6 +231,7 @@ def split_repetitive_svs(fn_in, fn_out_repeats, fn_out_not_repeats, rep_dict, re
 				continue
 			if my_type in ['BND', 'INV']:	# assume all svs of these types are not repetitive
 				f3.write(line)
+				n_notreps += 1
 				continue
 			elif my_end == None:
 				print('what kind of weird SV are you?')
@@ -244,3 +249,28 @@ def split_repetitive_svs(fn_in, fn_out_repeats, fn_out_not_repeats, rep_dict, re
 	f.close()
 	print('SVS-repeats:', n_reps)
 	print('SVS-other:  ', n_notreps)
+
+#
+#
+#
+def intersect_vcf_with_bed(fn_in, bed_dict, within_dist=10):
+	f = open(fn_in, 'r')
+	for line in f:
+		if line[0] == '#':
+			if line[1] != '#':
+				splt = line[1:].strip().split('\t')
+				col_info = splt.index('INFO')
+				col_form = splt.index('FORMAT')
+				col_samp = len(splt) - 1
+		else:
+			splt   = line.strip().split('\t')
+			my_chr = splt[0]
+			my_pos = int(splt[1])
+			(my_type, my_len, my_end) = parse_info_column_of_sv(splt[col_info], my_pos)
+			#
+			my_hits = query_bed_regions(bed_dict, my_chr, my_pos, q_end=my_end, max_dist=within_dist)
+			#
+			if len(my_hits):
+				print(my_chr, my_pos, my_end, my_len, my_type, my_hits)
+	f.close()
+

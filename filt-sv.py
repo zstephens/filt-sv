@@ -7,7 +7,7 @@ import numpy as np
 from source.bed_func import get_repetitive_regions, parse_bed_regions, REP_BUFF
 from source.corgi_mappability import MappabilityTrack
 from source.sv_blacklist import get_common_svs, split_common_svs
-from source.vcf_func import filter_vcf_by_readcount, filter_vcf_by_size, filter_vcf_by_type, sort_vcf, split_repetitive_svs
+from source.vcf_func import filter_vcf_by_readcount, filter_vcf_by_size, filter_vcf_by_type, intersect_vcf_with_bed, sort_vcf, split_repetitive_svs
 from source.workflow_cmds import EXE_DICT, mv, rm
 
 VALID_REFS = ['hg19', 'hg38']
@@ -28,7 +28,7 @@ def main(raw_args=None):
 	parser.add_argument('--vaf-bnd',       type=float, required=False, metavar='', help="BND VAF filter",                    default=0.3)
 	parser.add_argument('--control-freq',  type=float, required=False, metavar='', help="Minimum SV frequency in controls",  default=0.5)
 	parser.add_argument('--min-size',      type=int,   required=False, metavar='', help="Minimum size (non-repetitive SVs)", default=50)
-	parser.add_argument('--min-size-rep',  type=int,   required=False, metavar='', help="Minimum size (repetitive SVs)",     default=300)
+	parser.add_argument('--min-size-rep',  type=int,   required=False, metavar='', help="Minimum size (repetitive SVs)",     default=50)
 	args = parser.parse_args()
 
 	INPUT_VCF = args.i
@@ -48,14 +48,14 @@ def main(raw_args=None):
 	os.system('mkdir -p ' + OUT_DIR)
 	os.system('mkdir -p ' + TEMP_DIR)
 	#
-	CONFIG = args.c
-	if CONFIG != None:
-		print('reading config file', CONFIG + '...')
-		f = open(CONFIG, 'r')
-		for line in f:
-			splt = line.strip().split('\t')
-			EXE_DICT[splt[0]] = splt[1]
-		f.close()
+	####CONFIG = args.c
+	####if CONFIG != None:
+	####	print('reading config file', CONFIG + '...')
+	####	f = open(CONFIG, 'r')
+	####	for line in f:
+	####		splt = line.strip().split('\t')
+	####		EXE_DICT[splt[0]] = splt[1]
+	####	f.close()
 	#
 	READCOUNT_INIT = args.readcount
 	READCOUNT_BND  = args.readcount_bnd
@@ -71,8 +71,8 @@ def main(raw_args=None):
 	sim_path = pathlib.Path(__file__).resolve().parent
 	res_path = str(sim_path) + '/resources/' + REF_NAME + '/'
 	#
-	BED_DICT_GENE = parse_bed_regions(res_path + 'gencode_v38_gene.bed.gz', 4)
-	BED_DICT_EXON = parse_bed_regions(res_path + 'gencode_v38_exon.bed.gz', 4)
+	BED_DICT_GENE = parse_bed_regions(res_path + 'gencode_v38_gene.bed.gz', anno_col=4)
+	BED_DICT_EXON = parse_bed_regions(res_path + 'gencode_v38_exon.bed.gz', anno_col=4)
 	COMMON_SVS    = get_common_svs(res_path + 'common-svs.bed.gz')
 	CONTROL_SVS   = get_common_svs(res_path + 'control-svs.bed.gz', min_control_freq=CONTROL_FREQ)
 	REPEAT_BED    = get_repetitive_regions(res_path + 'simple-repeats.bed.gz')
@@ -157,6 +157,9 @@ def main(raw_args=None):
 	#
 	# TODO: [5] ANNOTATE SVS THAT INTERSECT GENE REGIONS
 	#
+	print('-- intersecting with gene tracks: --')
+	#intersect_vcf_with_bed(NR_FINAL, BED_DICT_GENE)
+	intersect_vcf_with_bed(NR_FINAL, BED_DICT_EXON)
 
 	#
 	# TODO: [6] CLEANUP
