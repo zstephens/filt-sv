@@ -1,5 +1,7 @@
 import gzip
 
+from source.vcf_func import parse_info_column_of_sv
+
 SV_TYPE_MAP = {'deletion':                 ['DEL'],
                'herv deletion':            ['DEL'],
                'alu deletion':             ['DEL'],
@@ -14,12 +16,13 @@ SV_TYPE_MAP = {'deletion':                 ['DEL'],
                'alu insertion':            ['INS'],
                'sva insertion':            ['INS'],
                'mobile element insertion': ['INS'],
-               'DUP': ['DUP'],
-               'INS': ['INS'],
-               'DEL': ['DEL'],
-               'INV': ['INV'],
-               'BND': ['BND','TRA'],
-               'TRA': ['BND','TRA']}
+               'DUP':                      ['DUP'],
+               'INS':                      ['INS'],
+               'DEL':                      ['DEL'],
+               'INV':                      ['INV'],
+               'BND':                      ['BND','TRA'],
+               'TRA':                      ['BND','TRA'],
+               'INVDUP':                   ['INV','DUP']}
 
 #
 # common SVs
@@ -94,33 +97,13 @@ def split_common_svs(fn_in, fn_out_common, fn_out_not_common, blacklist):
 			splt4 = splt[col_info].split(';')
 			my_chr   = splt[0]
 			my_start = int(splt[1])
-			my_type  = None
-			my_len   = None
-			my_end   = None
-			for n in splt4:
-				if n[:7] == 'SVTYPE=':
-					my_type = n[7:]
-				if n[:6] == 'SVLEN=':
-					my_len = int(n[6:])
-				if n[:4] == 'END=':
-					my_end = int(n[4:])
-			if my_type == None:
-				#print 'SVTYPE not found in info? skipping...'
-				continue
-			if my_type == 'INS':
-				my_end = int(splt[1])
-			elif my_type == 'DEL' and my_len < 0:
-				my_end = int(splt[1]) - my_len
-			elif my_type == 'DUP' and my_len > 0:
-				my_end = int(splt[1]) + my_len
-			elif my_type in ['BND', 'INV']:	# assume all svs of these types are not in the blacklist
+			(my_type, my_len, my_end) = parse_info_column_of_sv(splt[col_info], my_start)
+			#
+			if my_type in ['BND', 'INV', 'INVDUP']:	# assume all svs of these types are not in the blacklist
 				f3.write(line)
 				n_not_common += 1
 				continue
-			elif my_end == None:
-				print('what kind of weird SV are you?')
-				print(splt)
-				exit(1)
+			#
 			if sv_is_in_blacklist(my_chr, my_start, my_end, my_type, blacklist):
 				f2.write(line)
 				n_common += 1

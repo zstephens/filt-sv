@@ -106,17 +106,24 @@ def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 			splt2  = splt[col_form].split(':')
 			splt3  = splt[col_samp].split(':')
 			#
-			# AD is missing
-			if 'AD' not in splt2:
-				nfailed += 1
-				continue
-			col_ad = splt2.index('AD')
+			# check for AD first
+			if 'AD' in splt2:
+				col_ad = splt2.index('AD')
+				if '.' in splt3[col_ad]:	# AD values are .
+					nfailed += 1
+					continue
+				readcounts = [int(n) for n in splt3[col_ad].split(',')]
 			#
-			# AD values are .
-			if '.' in splt3[col_ad]:
+			# if we don't have AD, do we have DR and DV fields instead?
+			elif 'DR' in splt2 and 'DV' in splt2:
+				col_dr = splt2.index('DR')
+				col_dv = splt2.index('DV')
+				readcounts = [int(splt3[col_dr]), int(splt3[col_dv])]
+			#
+			# otherwise we failed to find what we needed.
+			else:
 				nfailed += 1
 				continue
-			readcounts = [int(n) for n in splt3[col_ad].split(',')]
 			#
 			# why was this SV even called if zero reads support it??
 			if sum(readcounts) == 0:
@@ -140,7 +147,7 @@ def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 	print('SVS-pass (reads >= '+str(min_readcount)+' & vaf >= '+'{0:0.2f}'.format(min_vaf)+'):', nwritten)
 	print('SVS-filt (reads <  '+str(min_readcount)+' | vaf <  '+'{0:0.2f}'.format(min_vaf)+'):', nskipped)
 	print('---')
-	print('SVs-fail (AD not found, or multi-allelic):', nfailed)
+	print('SVs-fail (readcount not found / multi-allelic):', nfailed)
 
 #
 #
