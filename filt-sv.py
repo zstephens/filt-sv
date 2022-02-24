@@ -1,6 +1,8 @@
 import argparse
+import logging
 import os
 import pathlib
+import sys
 
 import numpy as np
 
@@ -34,10 +36,19 @@ def main(raw_args=None):
 	INPUT_VCF = args.i
 	OUT_DIR   = args.o
 	#
+	INPUT_NAME = os.path.basename(INPUT_VCF).rsplit('.',1)[0]
+	#
 	if OUT_DIR[-1] != '/':
 		OUT_DIR += '/'
 	#
-	OUT_LOG = OUT_DIR + 'log.txt'
+	LOGGER    = logging.getLogger()
+	f_handler = logging.FileHandler(OUT_DIR + INPUT_NAME + '.log')
+	s_handler = logging.StreamHandler(sys.stdout)
+	formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p' )
+	f_handler.setFormatter(formatter)
+	LOGGER.addHandler(s_handler)
+	LOGGER.addHandler(f_handler)
+	LOGGER.setLevel("DEBUG")
 	#
 	REF_NAME = args.r
 	if REF_NAME not in VALID_REFS:
@@ -101,23 +112,24 @@ def main(raw_args=None):
 	R_CONTROL  = R_NOT_COMMON[:-4]  + '-control.vcf'
 	NR_FINAL   = NON_REPEAT_VCF[:-4] + '-final.vcf'
 	R_FINAL    = REPEAT_VCF[:-4]     + '-final.vcf'
+	GENE_FINAL = OUT_DIR + INPUT_NAME + 'genes.txt'
 
 	#
 	# [1] READCOUNT FILTER --> SPLIT REPEATS --> SIZE FILTERS
 	#
-	print('')
-	print('-- initial filtering: --')
+	LOGGER.info(f'')
+	LOGGER.info(f'-- initial filtering: --')
 	filter_vcf_by_readcount(INPUT_VCF, TEMP_VCF_0, min_readcount=READCOUNT_INIT, min_vaf=VAF_INIT)
-	print('')
-	print('-- identifying repetitive svs: --')
+	LOGGER.info(f'')
+	LOGGER.info(f'-- identifying repetitive svs: --')
 	split_repetitive_svs(TEMP_VCF_0, TEMP_VCF_1, TEMP_VCF_2, REPEAT_BED, REPEAT_TRACK)
-	print('')
-	print('-- filtering non-repeats: --')
+	LOGGER.info(f'')
+	LOGGER.info(f'-- filtering non-repeats: --')
 	filter_vcf_by_size(TEMP_VCF_2, NON_REPEAT_VCF, min_size=MIN_NON_SV_LEN)
-	print('')
-	print('-- filtering repeats: --')
+	LOGGER.info(f'')
+	LOGGER.info(f'-- filtering repeats: --')
 	filter_vcf_by_size(TEMP_VCF_1, REPEAT_VCF, min_size=MIN_REP_SV_LEN)
-	print('')
+	LOGGER.info(f'')
 	rm(TEMP_VCF_0)
 	rm(TEMP_VCF_1)
 	rm(TEMP_VCF_2)
@@ -125,41 +137,43 @@ def main(raw_args=None):
 	#
 	# [2] SUBTRACT COMMON SVS
 	#
-	print('-- subtracting common svs (non-repeats): --')
+	LOGGER.info(f'-- subtracting common svs (non-repeats): --')
 	split_common_svs(NON_REPEAT_VCF, NR_COMMON, NR_NOT_COMMON, COMMON_SVS)
-	print('')
-	print('-- subtracting common svs (repeats): --')
+	LOGGER.info(f'')
+	LOGGER.info(f'-- subtracting common svs (repeats): --')
 	split_common_svs(REPEAT_VCF, R_COMMON, R_NOT_COMMON, COMMON_SVS)
-	print('')
+	LOGGER.info(f'')
 
 	#
 	# [3a] NON-REPETITIVE SVS --> SPLIT OFF TRANSLOCATIONS --> READCOUNT FILTER
 	# [3b] REPETITIVE SVS --> FILTER BY SIZE
 	#
-	print('-- identifying translocations: --')
+	LOGGER.info(f'-- identifying translocations: --')
 	filter_vcf_by_type(NR_NOT_COMMON, TEMP_VCF_0, NR_NOT_COMMON_NOT_BND, ['BND','TRA'])
-	print('')
-	print('-- filtering translocations: --')
+	LOGGER.info(f'')
+	LOGGER.info(f'-- filtering translocations: --')
 	filter_vcf_by_readcount(TEMP_VCF_0, NR_NOT_COMMON_BND, min_readcount=READCOUNT_BND, min_vaf=VAF_BND)
-	print('')
+	LOGGER.info(f'')
 	rm(TEMP_VCF_0)
 
 	#
 	# [4] SUBTRACT CONTROL SVS
 	#
-	print('-- subtracting control svs (non-repeats): --')
+	LOGGER.info(f'-- subtracting control svs (non-repeats): --')
 	split_common_svs(NR_NOT_COMMON_NOT_BND, NR_CONTROL, NR_FINAL, CONTROL_SVS)
-	print('')
-	print('-- subtracting control svs (repeats): --')
+	LOGGER.info(f'')
+	LOGGER.info(f'-- subtracting control svs (repeats): --')
 	split_common_svs(R_NOT_COMMON, R_CONTROL, R_FINAL, CONTROL_SVS)
-	print('')
+	LOGGER.info(f'')
 
 	#
 	# TODO: [5] ANNOTATE SVS THAT INTERSECT GENE REGIONS
 	#
-	print('-- intersecting with gene tracks: --')
+	LOGGER.info(f'-- intersecting with gene tracks: --')
 	#intersect_vcf_with_bed(NR_FINAL, BED_DICT_GENE)
-	intersect_vcf_with_bed(NR_FINAL, BED_DICT_EXON)
+	intersect_vcf_with_bed(NR_FINAL, GENE_FINAL, BED_DICT_EXON)
+	LOGGER.info(f'Check {GENE_FINAL} for gene intersect')
+	LOGGER.info(f'')
 
 	#
 	# TODO: [6] CLEANUP

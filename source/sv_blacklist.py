@@ -1,6 +1,9 @@
+import logging
 import gzip
 
 from source.vcf_func import parse_info_column_of_sv
+
+LOGGER = logging.getLogger()
 
 SV_TYPE_MAP = {'deletion':                 ['DEL'],
                'herv deletion':            ['DEL'],
@@ -56,7 +59,7 @@ def get_common_svs(filename, min_control_freq=-1., collapse_dup_and_ins=True):
 	freq_str = ''
 	if min_control_freq >= 0.:
 		freq_str = ' (freq >= {0:0.3f})'.format(min_control_freq)
-	print('read ' + str(n_svs_read) + ' svs from ' + my_fn + freq_str)
+	LOGGER.info(f'read {n_svs_read} svs from {my_fn} {freq_str}')
 	return common_svs
 
 #
@@ -113,5 +116,5 @@ def split_common_svs(fn_in, fn_out_common, fn_out_not_common, blacklist):
 	f3.close()
 	f2.close()
 	f.close()
-	print('SVS-pass:', n_not_common)
-	print('SVS-filt:', n_common)
+	LOGGER.info(f'SVS-pass: {n_not_common}')
+	LOGGER.info(f'SVS-filt: {n_common}')

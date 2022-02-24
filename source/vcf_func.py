@@ -1,8 +1,10 @@
-import pathlib
+import logging
 import re
 import sys
 
 from source.bed_func import query_bed_regions
+
+LOGGER = logging.getLogger()
 
 LEXICO_2_IND = {'chr1':1, 'chr2':2, 'chr3':3, 'chr10':10, 'chr11':11, 'chr12':12, 'chr19':19, 'chr20':20,
 				'chr4':4, 'chr5':5, 'chr6':6, 'chr13':13, 'chr14':14, 'chr15':15, 'chr21':21, 'chr22':22,
@@ -144,10 +146,10 @@ def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 				nskipped += 1
 	f2.close()
 	f.close()
-	print('SVS-pass (reads >= '+str(min_readcount)+' & vaf >= '+'{0:0.2f}'.format(min_vaf)+'):', nwritten)
-	print('SVS-filt (reads <  '+str(min_readcount)+' | vaf <  '+'{0:0.2f}'.format(min_vaf)+'):', nskipped)
-	print('---')
-	print('SVs-fail (readcount not found / multi-allelic):', nfailed)
+	LOGGER.info(f'SVS-pass (reads >= {min_readcount} & vaf >= {min_vaf}: {nwritten}')
+	LOGGER.info(f'SVS-filt (reads <  {min_readcount} | vaf <  {min_vaf}: {nskipped}')
+	LOGGER.info(f'---')
+	LOGGER.info(f'SVs-fail (readcount not found / multi-allelic): {nfailed}')
 
 #
 #
@@ -173,8 +175,8 @@ def filter_vcf_by_size(fn_in, fn_out, min_size=300):
 				nskipped += 1
 	f2.close()
 	f.close()
-	print('SVS-pass (size >= '+str(min_size)+'):', nwritten)
-	print('SVS-filt (size <  '+str(min_size)+'):', nskipped)
+	LOGGER.info(f'SVS-pass (size >= {min_size}): {nwritten}')
+	LOGGER.info(f'SVS-filt (size <  {min_size}): {nskipped}')
 
 #
 #
@@ -210,8 +212,8 @@ def filter_vcf_by_type(fn_in, fn_out_filtered, fn_out_not_filtered, types_to_fil
 		(s1, s2) = ('', ' '*size_diff)
 	else:
 		(s1, s2) = (' '*size_diff, '')
-	print('SVS ('+out_str+'):'+s1, n_filt)
-	print('SVS (other):'+s2, n_not_filt)
+	LOGGER.info(f'SVS ({out_str}): {s1} {n_filt}')
+	LOGGER.info(f'SVS (other):     {s2} {n_not_filt}')
 
 #
 #
@@ -254,14 +256,15 @@ def split_repetitive_svs(fn_in, fn_out_repeats, fn_out_not_repeats, rep_dict, re
 	f3.close()
 	f2.close()
 	f.close()
-	print('SVS-repeats:', n_reps)
-	print('SVS-other:  ', n_notreps)
+	LOGGER.info(f'SVS-repeats: {n_reps}')
+	LOGGER.info(f'SVS-other:   {n_notreps}')
 
 #
 #
 #
-def intersect_vcf_with_bed(fn_in, bed_dict, within_dist=10):
+def intersect_vcf_with_bed(fn_in, fn_out, bed_dict, within_dist=10):
 	f = open(fn_in, 'r')
+	f2 = open(fn_out, 'w')
 	for line in f:
 		if line[0] == '#':
 			if line[1] != '#':
@@ -278,6 +281,7 @@ def intersect_vcf_with_bed(fn_in, bed_dict, within_dist=10):
 			my_hits = query_bed_regions(bed_dict, my_chr, my_pos, q_end=my_end, max_dist=within_dist)
 			#
 			if len(my_hits):
-				print(my_chr, my_pos, my_end, my_len, my_type, my_hits)
+				f2.write('\t'.join([str(n) for n in [my_chr, my_pos, my_end, my_len, my_type, my_hits]]) + '\n')
+	f2.close()
 	f.close()
 
