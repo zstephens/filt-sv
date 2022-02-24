@@ -24,13 +24,15 @@ def main(raw_args=None):
 	parser.add_argument('-r',  type=str, required=False, metavar='',            help="Reference build hg19/hg38", default='hg38')
 	#parser.add_argument('-c',  type=str, required=False, metavar='tools.cfg',   help="Config file with exe paths",       default=None)
 	#
-	parser.add_argument('--readcount',     type=int,   required=False, metavar='', help="Initial readcount filter",          default=2)
-	parser.add_argument('--readcount-bnd', type=int,   required=False, metavar='', help="BND readcount filter",              default=5)
-	parser.add_argument('--vaf',           type=float, required=False, metavar='', help="Initial VAF filter",                default=0.2)
-	parser.add_argument('--vaf-bnd',       type=float, required=False, metavar='', help="BND VAF filter",                    default=0.3)
-	parser.add_argument('--control-freq',  type=float, required=False, metavar='', help="Minimum SV frequency in controls",  default=0.5)
-	parser.add_argument('--min-size',      type=int,   required=False, metavar='', help="Minimum size (non-repetitive SVs)", default=50)
-	parser.add_argument('--min-size-rep',  type=int,   required=False, metavar='', help="Minimum size (repetitive SVs)",     default=50)
+	parser.add_argument('--readcount',     type=int,   required=False, metavar='', help="Initial readcount filter",             default=2)
+	parser.add_argument('--readcount-bnd', type=int,   required=False, metavar='', help="BND readcount filter",                 default=5)
+	parser.add_argument('--vaf',           type=float, required=False, metavar='', help="Initial VAF filter",                   default=0.2)
+	parser.add_argument('--vaf-bnd',       type=float, required=False, metavar='', help="BND VAF filter",                       default=0.3)
+	parser.add_argument('--control-freq',  type=float, required=False, metavar='', help="Minimum SV frequency in controls",     default=0.5)
+	parser.add_argument('--min-size',      type=int,   required=False, metavar='', help="Minimum SV size (non-repetitive SVs)", default=50)
+	parser.add_argument('--min-size-rep',  type=int,   required=False, metavar='', help="Minimum SV size (repetitive SVs)",     default=50)
+	parser.add_argument('--max-size',      type=int,   required=False, metavar='', help="Maximum SV size (non-repetitive SVs)", default=1000000)
+	parser.add_argument('--max-size-rep',  type=int,   required=False, metavar='', help="Maximum SV size (repetitive SVs)",     default=1000000)
 	args = parser.parse_args()
 
 	INPUT_VCF = args.i
@@ -41,10 +43,14 @@ def main(raw_args=None):
 	if OUT_DIR[-1] != '/':
 		OUT_DIR += '/'
 	#
+	TEMP_DIR = OUT_DIR + 'temp/'
+	os.system('mkdir -p ' + OUT_DIR)
+	os.system('mkdir -p ' + TEMP_DIR)
+	#
 	LOGGER    = logging.getLogger()
-	f_handler = logging.FileHandler(OUT_DIR + INPUT_NAME + '.log')
+	f_handler = logging.FileHandler(OUT_DIR + INPUT_NAME + '.log', mode='w')
 	s_handler = logging.StreamHandler(sys.stdout)
-	formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p' )
+	formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 	f_handler.setFormatter(formatter)
 	LOGGER.addHandler(s_handler)
 	LOGGER.addHandler(f_handler)
@@ -54,10 +60,6 @@ def main(raw_args=None):
 	if REF_NAME not in VALID_REFS:
 		print('Error: -r must be one of: ' + ', '.join(VALID_REFS))
 		exit(1)
-	#
-	TEMP_DIR = OUT_DIR + 'temp/'
-	os.system('mkdir -p ' + OUT_DIR)
-	os.system('mkdir -p ' + TEMP_DIR)
 	#
 	####CONFIG = args.c
 	####if CONFIG != None:
@@ -75,6 +77,8 @@ def main(raw_args=None):
 	CONTROL_FREQ   = args.control_freq
 	MIN_NON_SV_LEN = args.min_size
 	MIN_REP_SV_LEN = args.min_size_rep
+	MAX_NON_SV_LEN = args.max_size
+	MAX_REP_SV_LEN = args.max_size_rep
 	#
 	FINAL_VCF      = OUT_DIR + 'filtered_svs.vcf'
 
@@ -125,10 +129,10 @@ def main(raw_args=None):
 	split_repetitive_svs(TEMP_VCF_0, TEMP_VCF_1, TEMP_VCF_2, REPEAT_BED, REPEAT_TRACK)
 	LOGGER.info(f'')
 	LOGGER.info(f'-- filtering non-repeats: --')
-	filter_vcf_by_size(TEMP_VCF_2, NON_REPEAT_VCF, min_size=MIN_NON_SV_LEN)
+	filter_vcf_by_size(TEMP_VCF_2, NON_REPEAT_VCF, min_size=MIN_NON_SV_LEN, max_size=MAX_NON_SV_LEN)
 	LOGGER.info(f'')
 	LOGGER.info(f'-- filtering repeats: --')
-	filter_vcf_by_size(TEMP_VCF_1, REPEAT_VCF, min_size=MIN_REP_SV_LEN)
+	filter_vcf_by_size(TEMP_VCF_1, REPEAT_VCF, min_size=MIN_REP_SV_LEN, max_size=MAX_REP_SV_LEN)
 	LOGGER.info(f'')
 	rm(TEMP_VCF_0)
 	rm(TEMP_VCF_1)

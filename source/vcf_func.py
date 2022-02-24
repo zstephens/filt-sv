@@ -99,66 +99,78 @@ def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 		if line[0] == '#':
 			if line[1] != '#':
 				splt = line[1:].strip().split('\t')
-				col_info = splt.index('INFO')
-				col_form = splt.index('FORMAT')
-				col_samp = len(splt) - 1
+				col_info      = splt.index('INFO')
+				col_form      = splt.index('FORMAT')
+				col_samp_list = list(range(col_form+1, len(splt)))
 			f2.write(line)
 		else:
-			splt   = line.strip().split('\t')
-			splt2  = splt[col_form].split(':')
-			splt3  = splt[col_samp].split(':')
-			#
-			# check for AD first
-			if 'AD' in splt2:
-				col_ad = splt2.index('AD')
-				if '.' in splt3[col_ad]:	# AD values are .
-					nfailed += 1
+			splt  = line.strip().split('\t')
+			splt2 = splt[col_form].split(':')
+			results = []
+			for col_samp in col_samp_list:
+				splt3 = splt[col_samp].split(':')
+				#
+				# check for AD first
+				if 'AD' in splt2:
+					col_ad = splt2.index('AD')
+					if '.' in splt3[col_ad]:	# AD values are .
+						results.append('fail')
+						continue
+					readcounts = [int(n) for n in splt3[col_ad].split(',')]
+				#
+				# if we don't have AD, do we have DR and DV fields instead?
+				elif 'DR' in splt2 and 'DV' in splt2:
+					col_dr = splt2.index('DR')
+					col_dv = splt2.index('DV')
+					if splt3[col_dr] == '.' or splt3[col_dv] == '.':	# DR / DV values are .
+						results.append('fail')
+						continue
+					readcounts = [int(splt3[col_dr]), int(splt3[col_dv])]
+				#
+				# otherwise we failed to find what we needed.
+				else:
+					results.append('fail')
 					continue
-				readcounts = [int(n) for n in splt3[col_ad].split(',')]
-			#
-			# if we don't have AD, do we have DR and DV fields instead?
-			elif 'DR' in splt2 and 'DV' in splt2:
-				col_dr = splt2.index('DR')
-				col_dv = splt2.index('DV')
-				readcounts = [int(splt3[col_dr]), int(splt3[col_dv])]
-			#
-			# otherwise we failed to find what we needed.
-			else:
-				nfailed += 1
-				continue
-			#
-			# why was this SV even called if zero reads support it??
-			if sum(readcounts) == 0:
-				nskipped += 1
-				continue
-			my_reads = readcounts[1]
-			my_vaf   = float(my_reads)/sum(readcounts)
-			#
-			# multiple alleles, skipping this for now...
-			if len(readcounts) > 2:
-				nfailed += 1
-				continue
-			#
-			if len(readcounts) == 2 and my_reads >= min_readcount and my_vaf >= min_vaf:
+				#
+				# why was this SV even called if zero reads support it??
+				if sum(readcounts) == 0:
+					results.append('skip')
+					continue
+				my_reads = readcounts[1]
+				my_vaf   = float(my_reads)/sum(readcounts)
+				#
+				# multiple alleles, skipping this for now...
+				if len(readcounts) > 2:
+					results.append('fail')
+					continue
+				#
+				if len(readcounts) == 2 and my_reads >= min_readcount and my_vaf >= min_vaf:
+					results.append('pass')
+				else:
+					results.append('skip')
+			if 'pass' in results:
 				f2.write(line)
 				nwritten += 1
-			else:
+			elif 'skip' in results:
 				nskipped += 1
+			else:
+				nfailed += 1
 	f2.close()
 	f.close()
-	LOGGER.info(f'SVS-pass (reads >= {min_readcount} & vaf >= {min_vaf}: {nwritten}')
-	LOGGER.info(f'SVS-filt (reads <  {min_readcount} | vaf <  {min_vaf}: {nskipped}')
+	LOGGER.info(f'SVS-pass (reads >= {min_readcount} & vaf >= {min_vaf}): {nwritten}')
+	LOGGER.info(f'SVS-filt (reads <  {min_readcount} | vaf <  {min_vaf}): {nskipped}')
 	LOGGER.info(f'---')
 	LOGGER.info(f'SVs-fail (readcount not found / multi-allelic): {nfailed}')
 
 #
 #
 #
-def filter_vcf_by_size(fn_in, fn_out, min_size=300):
+def filter_vcf_by_size(fn_in, fn_out, min_size=300, max_size=1000000):
 	f  = open(fn_in, 'r')
 	f2 = open(fn_out, 'w')
-	nskipped = 0
-	nwritten = 0
+	nskipped_min = 0
+	nskipped_max = 0
+	nwritten     = 0
 	for line in f:
 		if line[0] == '#':
 			if line[1] != '#':
@@ -168,15 +180,18 @@ def filter_vcf_by_size(fn_in, fn_out, min_size=300):
 		else:
 			splt = line.strip().split('\t')
 			(my_type, my_len, my_end) = parse_info_column_of_sv(splt[col_info], int(splt[1]))
-			if my_len == None or abs(my_len) >= min_size:
+			if my_len == None or abs(my_len) < min_size:
+				nskipped_min += 1
+			elif abs(my_len) > max_size:
+				nskipped_max += 1
+			else:
 				f2.write(line)
 				nwritten += 1
-			else:
-				nskipped += 1
 	f2.close()
 	f.close()
-	LOGGER.info(f'SVS-pass (size >= {min_size}): {nwritten}')
-	LOGGER.info(f'SVS-filt (size <  {min_size}): {nskipped}')
+	LOGGER.info(f'SVS-pass: {nwritten}')
+	LOGGER.info(f'SVS-filt (size < {min_size}): {nskipped_min}')
+	LOGGER.info(f'SVS-filt (size > {max_size}): {nskipped_max}')
 
 #
 #
@@ -213,7 +228,7 @@ def filter_vcf_by_type(fn_in, fn_out_filtered, fn_out_not_filtered, types_to_fil
 	else:
 		(s1, s2) = (' '*size_diff, '')
 	LOGGER.info(f'SVS ({out_str}): {s1} {n_filt}')
-	LOGGER.info(f'SVS (other):     {s2} {n_not_filt}')
+	LOGGER.info(f'SVS (other): {s2} {n_not_filt}')
 
 #
 #
