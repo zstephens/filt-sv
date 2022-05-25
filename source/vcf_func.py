@@ -165,7 +165,7 @@ def filter_vcf_by_readcount(fn_in, fn_out, min_readcount=2, min_vaf=0.25):
 #
 #
 #
-def filter_vcf_by_size(fn_in, fn_out, min_size=300, max_size=1000000):
+def filter_vcf_by_size(fn_in, fn_out, min_size=50, max_size=1000000):
 	f  = open(fn_in, 'r')
 	f2 = open(fn_out, 'w')
 	nskipped_min = 0
@@ -180,7 +180,10 @@ def filter_vcf_by_size(fn_in, fn_out, min_size=300, max_size=1000000):
 		else:
 			splt = line.strip().split('\t')
 			(my_type, my_len, my_end) = parse_info_column_of_sv(splt[col_info], int(splt[1]))
-			if my_len == None or abs(my_len) < min_size:
+			if my_type in ['BND','TRA']:	# translocations get to skip size filter
+				f2.write(line)
+				nwritten += 1
+			elif my_len == None or abs(my_len) < min_size:
 				nskipped_min += 1
 			elif abs(my_len) > max_size:
 				nskipped_max += 1
